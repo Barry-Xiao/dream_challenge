@@ -13,15 +13,44 @@ library(ALDEx2)
 
 
 
-feature_filtering <- function(filename,metadata,outcome,outname, prev = 0.1, seed = 1000){
+feature_filtering <- function(filename,metadata,CST,outcome,outname, prev = 0.1, seed = 1000){
   
   meta_data <- read.csv(metadata, header = T)
-  outcome_vec <- meta_data[,outcome]
   
-  raw <- read.csv(filename,header = T,row.names = 1)[meta_data$specimen,]
+  multi_data <- meta_data %>% group_by(participant_id, collect_wk) %>% 
+    filter(n() > 1) %>% ungroup() %>% dplyr::select(participant_id,specimen,collect_wk)
   
   
-  reads <- as.data.frame(t(raw))
+  CST_data <- read.csv(CST, header = T)
+  
+  CST_multi <- merge(multi_data, CST_data,by = "specimen", all.x = T) %>% 
+    arrange(participant_id, collect_wk) %>% 
+    mutate(uid = paste(participant_id,collect_wk, sep = "_"))
+  
+  
+  CST_multi_sum <- CST_multi %>% group_by(uid) %>% 
+    summarise(same_CST = n_distinct(CST) == 1) %>% ungroup()
+  
+  inconsistent_uid <- CST_multi_sum %>% filter(!same_CST) %>% pull(uid)
+  
+  
+  raw <- read.csv(filename,header = T)
+  
+  combo_data_filter_inconsistent <- merge(meta_data,raw,by = "specimen") %>%
+    mutate(uid = paste(participant_id,collect_wk, sep = "_")) %>% 
+    filter(!uid %in% inconsistent_uid)
+  
+  meta_clean <- combo_data_filter_inconsistent %>% dplyr::select(colnames(meta_data)) %>% 
+    arrange(specimen) %>% group_by(uid) %>% filter(row_number() == 1) %>% ungroup()
+  
+  raw_clean <- combo_data_filter_inconsistent %>% dplyr::select(colnames(raw)) %>%
+    arrange(specimen) %>% group_by(uid) %>% summarise_all("mean") %>% ungroup() %>% dplyr::select(-c(uid,specimen))
+  
+  
+  
+  outcome_vec <- meta_clean[,outcome]
+  
+  reads <- as.data.frame(t(raw_clean))
   
   
   reads_clean <- reads[rowSums(reads != 0) > prev*ncol(reads),]
@@ -54,10 +83,21 @@ feature_filtering <- function(filename,metadata,outcome,outname, prev = 0.1, see
   
 }
 
-feature_filtering("raw_data/training_data_2022-07-21/taxonomy/taxonomy_nreads.family.csv",
-                  "metadata_imputed.csv",
+feature_filtering("data/training_data_2022-07-21/taxonomy/taxonomy_nreads.family.csv",
+                  "data/metadata_imputed.csv",
+                  "data/training_data_2022-07-21/community_state_types/cst_valencia.csv",
                   "was_preterm",
-                  "tax_fam_preterm.csv")
+                  "data/test.csv")
+
+
+
+
+
+
+
+
+
+
 feature_filtering("raw_data/training_data_2022-07-21/taxonomy/taxonomy_nreads.genus.csv",
                   "metadata_imputed.csv",
                   "was_preterm",

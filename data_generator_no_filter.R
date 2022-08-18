@@ -6,13 +6,15 @@ args = commandArgs(trailingOnly = TRUE)
 
 
 ##
-data_path = args[1]
+outcome = args[1]
 
-outcome = args[2]
+data_path = args[2]
 
-profile_path = args[3]
+meta_path = args[3]
 
-meta_path = args[4]
+profile_path = args[4]
+
+
 
 
 

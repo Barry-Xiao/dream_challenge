@@ -17,6 +17,12 @@ feature_filtering <- function(filename,metadata,CST,outcome,outname, prev = 0.1,
   
   meta_data <- read.csv(metadata, header = T)
   
+  if (outcome == "was_preterm") {
+    meta_data <- meta_data %>% filter(collect_wk <= 32)
+  } else {
+    meta_data <- meta_data %>% filter(collect_wk <= 28)
+  }
+  
   multi_data <- meta_data %>% group_by(participant_id, collect_wk) %>% 
     filter(n() > 1) %>% ungroup() %>% dplyr::select(participant_id,specimen,collect_wk)
   
@@ -36,24 +42,28 @@ feature_filtering <- function(filename,metadata,CST,outcome,outname, prev = 0.1,
   
   raw <- read.csv(filename,header = T)
   
-  combo_data_filter_inconsistent <- merge(meta_data,raw,by = "specimen") %>%
+  combo_data_filter_inconsistent <- merge(meta_data,raw,by = "specimen",all.x = T) %>%
     mutate(uid = paste(participant_id,collect_wk, sep = "_")) %>% 
     filter(!uid %in% inconsistent_uid)
   
-  meta_clean <- combo_data_filter_inconsistent %>% dplyr::select(colnames(meta_data)) %>% 
-    arrange(specimen) %>% group_by(uid) %>% filter(row_number() == 1) %>% ungroup()
+  meta_clean <- combo_data_filter_inconsistent %>% dplyr::select(c(colnames(meta_data),"uid")) %>% 
+     arrange(specimen) %>% column_to_rownames("specimen") %>%
+     group_by(uid) %>% filter(row_number() == 1) %>% ungroup() %>% arrange(uid) %>%
+     dplyr::select(-uid)
   
-  raw_clean <- combo_data_filter_inconsistent %>% dplyr::select(colnames(raw)) %>%
-    arrange(specimen) %>% group_by(uid) %>% summarise_all("mean") %>% ungroup() %>% dplyr::select(-c(uid,specimen))
+  raw_clean <- combo_data_filter_inconsistent %>% dplyr::select(c(colnames(raw),"uid")) %>%
+     arrange(specimen) %>% column_to_rownames("specimen") %>% 
+     group_by(uid) %>% summarise_all("mean") %>% ungroup() %>% arrange(uid) %>%
+     dplyr::select(-uid)
   
+ 
   
-  
-  outcome_vec <- meta_clean[,outcome]
+  outcome_vec <- unlist(meta_clean[,outcome])
   
   reads <- as.data.frame(t(raw_clean))
   
   
-  reads_clean <- reads[rowSums(reads != 0) > prev*ncol(reads),]
+  reads_clean <- round(reads[rowSums(reads != 0) > prev*ncol(reads),])
   
   rm(raw)
   rm(reads)
@@ -83,68 +93,83 @@ feature_filtering <- function(filename,metadata,CST,outcome,outname, prev = 0.1,
   
 }
 
+
+## feature filtering based on preterm
 feature_filtering("data/training_data_2022-07-21/taxonomy/taxonomy_nreads.family.csv",
                   "data/metadata_imputed.csv",
                   "data/training_data_2022-07-21/community_state_types/cst_valencia.csv",
                   "was_preterm",
-                  "data/test.csv")
+                  "data/selected_feature/tax_family_preterm.csv")
 
-
-
-
-
-
-
-
-
-
-feature_filtering("raw_data/training_data_2022-07-21/taxonomy/taxonomy_nreads.genus.csv",
-                  "metadata_imputed.csv",
+feature_filtering("data/training_data_2022-07-21/taxonomy/taxonomy_nreads.genus.csv",
+                  "data/metadata_imputed.csv",
+                  "data/training_data_2022-07-21/community_state_types/cst_valencia.csv",
                   "was_preterm",
-                  "tax_genus_preterm.csv")
-feature_filtering("raw_data/training_data_2022-07-21/taxonomy/taxonomy_nreads.species.csv",
-                  "metadata_imputed.csv",
-                  "was_preterm",
-                  "tax_species_preterm.csv")
+                  "data/selected_feature/tax_genus_preterm.csv")
 
-feature_filtering("raw_data/training_data_2022-07-21/phylotypes/phylotype_nreads.1e_1.csv",
-                  "metadata_imputed.csv",
+feature_filtering("data/training_data_2022-07-21/taxonomy/taxonomy_nreads.species.csv",
+                  "data/metadata_imputed.csv",
+                  "data/training_data_2022-07-21/community_state_types/cst_valencia.csv",
                   "was_preterm",
-                  "phylo_.1_preterm.csv")
-feature_filtering("raw_data/training_data_2022-07-21/phylotypes/phylotype_nreads.1e0.csv",
-                  "metadata_imputed.csv",
+                  "data/selected_feature/tax_species_preterm.csv")
+
+feature_filtering("data/training_data_2022-07-21/phylotypes/phylotype_nreads.1e_1.csv",
+                  "data/metadata_imputed.csv",
+                  "data/training_data_2022-07-21/community_state_types/cst_valencia.csv",
                   "was_preterm",
-                  "phylo_1_preterm.csv")
-feature_filtering("raw_data/training_data_2022-07-21/phylotypes/phylotype_nreads.5e_1.csv",
-                  "metadata_imputed.csv",
+                  "data/selected_feature/phylo_.1_preterm.csv")
+
+feature_filtering("data/training_data_2022-07-21/phylotypes/phylotype_nreads.1e0.csv",
+                  "data/metadata_imputed.csv",
+                  "data/training_data_2022-07-21/community_state_types/cst_valencia.csv",
                   "was_preterm",
-                  "phylo_.5_preterm.csv")
+                  "data/selected_feature/phylo_1_preterm.csv")
+
+feature_filtering("data/training_data_2022-07-21/phylotypes/phylotype_nreads.5e_1.csv",
+                  "data/metadata_imputed.csv",
+                  "data/training_data_2022-07-21/community_state_types/cst_valencia.csv",
+                  "was_preterm",
+                  "data/selected_feature/phylo_.5_preterm.csv")
 
 
-feature_filtering("raw_data/training_data_2022-07-21/taxonomy/taxonomy_nreads.family.csv",
-                  "metadata_imputed.csv",
+## feature filtering based on early preterm
+feature_filtering("data/training_data_2022-07-21/taxonomy/taxonomy_nreads.family.csv",
+                  "data/metadata_imputed.csv",
+                  "data/training_data_2022-07-21/community_state_types/cst_valencia.csv",
                   "was_early_preterm",
-                  "tax_fam_early_preterm.csv")
-feature_filtering("raw_data/training_data_2022-07-21/taxonomy/taxonomy_nreads.genus.csv",
-                  "metadata_imputed.csv",
-                  "was_early_preterm",
-                  "tax_genus_early_preterm.csv")
-feature_filtering("raw_data/training_data_2022-07-21/taxonomy/taxonomy_nreads.species.csv",
-                  "metadata_imputed.csv",
-                  "was_early_preterm",
-                  "tax_species_early_preterm.csv")
+                  "data/selected_feature/tax_family_early_preterm.csv")
 
-feature_filtering("raw_data/training_data_2022-07-21/phylotypes/phylotype_nreads.1e_1.csv",
-                  "metadata_imputed.csv",
+feature_filtering("data/training_data_2022-07-21/taxonomy/taxonomy_nreads.genus.csv",
+                  "data/metadata_imputed.csv",
+                  "data/training_data_2022-07-21/community_state_types/cst_valencia.csv",
                   "was_early_preterm",
-                  "phylo_.1_early_preterm.csv")
-feature_filtering("raw_data/training_data_2022-07-21/phylotypes/phylotype_nreads.1e0.csv",
-                  "metadata_imputed.csv",
+                  "data/selected_feature/tax_genus_early_preterm.csv")
+
+feature_filtering("data/training_data_2022-07-21/taxonomy/taxonomy_nreads.species.csv",
+                  "data/metadata_imputed.csv",
+                  "data/training_data_2022-07-21/community_state_types/cst_valencia.csv",
                   "was_early_preterm",
-                  "phylo_1_early_preterm.csv")
-feature_filtering("raw_data/training_data_2022-07-21/phylotypes/phylotype_nreads.5e_1.csv",
-                  "metadata_imputed.csv",
+                  "data/selected_feature/tax_species_early_preterm.csv")
+
+feature_filtering("data/training_data_2022-07-21/phylotypes/phylotype_nreads.1e_1.csv",
+                  "data/metadata_imputed.csv",
+                  "data/training_data_2022-07-21/community_state_types/cst_valencia.csv",
                   "was_early_preterm",
-                  "phylo_.5_early_preterm.csv")
+                  "data/selected_feature/phylo_.1_early_preterm.csv")
+
+feature_filtering("data/training_data_2022-07-21/phylotypes/phylotype_nreads.1e0.csv",
+                  "data/metadata_imputed.csv",
+                  "data/training_data_2022-07-21/community_state_types/cst_valencia.csv",
+                  "was_early_preterm",
+                  "data/selected_feature/phylo_1_early_preterm.csv")
+
+feature_filtering("data/training_data_2022-07-21/phylotypes/phylotype_nreads.5e_1.csv",
+                  "data/metadata_imputed.csv",
+                  "data/training_data_2022-07-21/community_state_types/cst_valencia.csv",
+                  "was_early_preterm",
+                  "data/selected_feature/phylo_.5_early_preterm.csv")
+
+
+
 
 

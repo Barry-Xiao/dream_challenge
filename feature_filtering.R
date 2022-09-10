@@ -1,6 +1,7 @@
 ##load packages
 library(tidyverse)
 library(ALDEx2)
+library(GUniFrac)
 
 
 ##feature filtering based on wilcox test,
@@ -11,17 +12,10 @@ library(ALDEx2)
 ###outcome: 'was_preterm', 'was_early_preterm'
 ###outname: output file name
 
+###method:ALDEX2/ZICO
 
 
-feature_filtering <- function(filename,metadata,CST,outcome,outname, prev = 0.1, seed = 1000){
-  
-  meta_data <- read.csv(metadata, header = T)
-  
-  if (outcome == "was_preterm") {
-    meta_data <- meta_data %>% filter(collect_wk <= 32)
-  } else {
-    meta_data <- meta_data %>% filter(collect_wk <= 28)
-  }
+combine_cst <- function(meta_data,raw, CST, outcome){
   
   multi_data <- meta_data %>% group_by(participant_id, collect_wk) %>% 
     filter(n() > 1) %>% ungroup() %>% dplyr::select(participant_id,specimen,collect_wk)
@@ -40,23 +34,32 @@ feature_filtering <- function(filename,metadata,CST,outcome,outname, prev = 0.1,
   inconsistent_uid <- CST_multi_sum %>% filter(!same_CST) %>% pull(uid)
   
   
-  raw <- read.csv(filename,header = T)
-  
   combo_data_filter_inconsistent <- merge(meta_data,raw,by = "specimen",all.x = T) %>%
     mutate(uid = paste(participant_id,collect_wk, sep = "_")) %>% 
     filter(!uid %in% inconsistent_uid)
   
   meta_clean <- combo_data_filter_inconsistent %>% dplyr::select(c(colnames(meta_data),"uid")) %>% 
-     arrange(specimen) %>% column_to_rownames("specimen") %>%
-     group_by(uid) %>% filter(row_number() == 1) %>% ungroup() %>% arrange(uid) %>%
-     dplyr::select(-uid)
+    arrange(specimen) %>% column_to_rownames("specimen") %>%
+    group_by(uid) %>% filter(row_number() == 1) %>% ungroup() %>% arrange(uid) %>%
+    dplyr::select(-uid)
   
   raw_clean <- combo_data_filter_inconsistent %>% dplyr::select(c(colnames(raw),"uid")) %>%
-     arrange(specimen) %>% column_to_rownames("specimen") %>% 
-     group_by(uid) %>% summarise_all("mean") %>% ungroup() %>% arrange(uid) %>%
-     dplyr::select(-uid)
+    arrange(specimen) %>% column_to_rownames("specimen") %>% 
+    group_by(uid) %>% summarise_all("mean") %>% ungroup() %>% arrange(uid) %>%
+    dplyr::select(-uid)
   
- 
+  
+  
+
+  list(meta_clean,raw_clean)
+  
+  
+}
+
+
+
+Aldex2_func <- function(meta_clean, raw_clean, outcome,
+                        prev = 0.1, seed = 1000) {
   
   outcome_vec <- unlist(meta_clean[,outcome])
   
@@ -65,7 +68,6 @@ feature_filtering <- function(filename,metadata,CST,outcome,outname, prev = 0.1,
   
   reads_clean <- round(reads[rowSums(reads != 0) > prev*ncol(reads),])
   
-  rm(raw)
   rm(reads)
   
   set.seed(seed)
@@ -88,8 +90,38 @@ feature_filtering <- function(filename,metadata,CST,outcome,outname, prev = 0.1,
     filter(wi.eBH <= 0.05)  %>% 
     dplyr::select(feature_selected, we.eBH, wi.eBH, c(effect:overlap)) %>%
     dplyr::arrange(desc(abs(effect)))
+
+  test 
   
-  write.csv(test, outname, row.names = F, na = "")
+}
+
+
+
+
+
+
+feature_filtering <- function(filename,metadata,
+                              CST,outcome,outname, prev = 0.1, seed = 1000){
+  
+  meta_data <- read.csv(metadata, header = T)
+  
+  if (outcome == "was_preterm") {
+    meta_data <- meta_data %>% filter(collect_wk <= 32)
+  } else {
+    meta_data <- meta_data %>% filter(collect_wk <= 28)
+  }
+  
+  raw <- read.csv(filename,header = T)
+  
+
+  meta_clean = combine_cst(meta_data,raw, CST, outcome)[[1]]
+  raw_clean = combine_cst(meta_data,raw, CST, outcome)[[2]]
+    
+  outdata = Aldex2_func(meta_clean, raw_clean, outcome,
+                          prev = 0.1, seed = 1000)
+    
+  write.csv(outdata, outname, row.names = F, na = "")
+    
   
 }
 
@@ -100,6 +132,7 @@ feature_filtering("data/training_data_2022-07-21/taxonomy/taxonomy_nreads.family
                   "data/training_data_2022-07-21/community_state_types/cst_valencia.csv",
                   "was_preterm",
                   "data/selected_feature/tax_family_preterm.csv")
+
 
 feature_filtering("data/training_data_2022-07-21/taxonomy/taxonomy_nreads.genus.csv",
                   "data/metadata_imputed.csv",

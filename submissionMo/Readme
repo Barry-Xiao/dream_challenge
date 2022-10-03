@@ -1,9 +1,0 @@
-Basically, you run R code in your local computer to selected feature. 
-
-What you need to store is only the model from python. 
-
-There is no need to upload files like "metadataimputed.csv". 
-
-Also, you need to output the features and this is important, which is the covariates in each data set that you selected, 
-
-i.e. for phylotypes data, you may want to have a file stores all the names like "pt0001", etc.
